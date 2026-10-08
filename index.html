@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ميزان | نظام إدارة القضايا لمكاتب المحاماة</title>
+<meta name="description" content="نظام لإدارة الموكلين والقضايا والجلسات والآجال القانونية لمكاتب المحاماة.">
+<meta name="theme-color" content="#0b2240">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Amiri:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script>
+tailwind.config = { theme: { extend: {
+  colors: {
+    navy: { 50:'#f1f5fb', 100:'#e1e9f5', 200:'#c3d3ea', 500:'#2f5487', 600:'#1f3f6e', 700:'#163257', 800:'#0f2747', 900:'#0b2240' },
+    gold: { 50:'#fbf6ea', 100:'#f5e9c8', 400:'#d4a84f', 500:'#c29433', 600:'#a87b22' },
+    ink:  { 900:'#0f172a', 700:'#334155', 500:'#64748b', 400:'#94a3b8', 300:'#cbd5e1', 200:'#e2e8f0', 100:'#f1f5f9', 50:'#f8fafc' }
+  },
+  fontFamily: { sans: ['"IBM Plex Sans Arabic"', 'sans-serif'], brand: ['Amiri', 'serif'] }
+} } }
+</script>
+<style>
+  body { -webkit-tap-highlight-color: transparent; }
+  .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { scrollbar-width: none; }
+  .fade-in { animation: fade .25s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .drawer { transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+  :focus-visible { outline: 3px solid #c29433; outline-offset: 2px; }
+  .pb-safe { padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+  .chip-on { background: #0f2747 !important; color: #fff !important; border-color: #0f2747 !important; }
+  /* Printable hearings roll ("رول الجلسات") */
+  #printArea { display: none; }
+  @media print {
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block; font-family: 'IBM Plex Sans Arabic', sans-serif; padding: 16px; }
+    #printArea table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #printArea th, #printArea td { border: 1px solid #94a3b8; padding: 6px 8px; text-align: right; vertical-align: top; }
+    #printArea th { background: #e2e8f0; }
+  }
+</style>
+</head>
+<body class="bg-ink-50 text-ink-900 font-sans antialiased">
+
+<div class="lg:flex min-h-screen">
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="hidden lg:flex lg:flex-col w-64 shrink-0 bg-navy-900 text-white h-screen sticky top-0 p-4">
+    <div class="flex items-center gap-3 px-2 mb-8">
+      <span class="w-11 h-11 rounded-xl bg-gold-500 text-navy-900 flex items-center justify-center shadow-lg"><i class="fa-solid fa-scale-balanced text-lg"></i></span>
+      <div class="leading-tight"><div class="font-brand text-2xl">ميزان</div><div class="text-[11px] text-navy-200">مكتب الأستاذ عمر الإدريسي</div></div>
+    </div>
+    <nav id="sideNav" class="space-y-1 text-sm font-medium"></nav>
+    <div class="mt-auto space-y-2">
+      <button data-action="print" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-sm"><i class="fa-solid fa-print ml-2"></i>طباعة رول الجلسات</button>
+      <div class="flex gap-2 text-xs">
+        <button data-action="export" class="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10"><i class="fa-solid fa-file-arrow-down ml-1"></i>تصدير Excel</button>
+        <button data-action="reset" class="py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10" title="إعادة البيانات التجريبية"><i class="fa-solid fa-rotate"></i></button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <div class="flex-1 min-w-0">
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-ink-200">
+      <div class="max-w-6xl mx-auto px-4 h-16 flex items-center gap-3">
+        <span class="lg:hidden w-10 h-10 rounded-xl bg-navy-900 text-gold-400 flex items-center justify-center shrink-0"><i class="fa-solid fa-scale-balanced"></i></span>
+        <div class="flex-1 min-w-0">
+          <h1 id="pageTitle" class="font-bold truncate"></h1>
+          <div id="pageSub" class="text-[11px] text-ink-500 truncate"></div>
+        </div>
+        <button data-action="search" class="hidden md:flex items-center gap-2 w-72 bg-ink-100 hover:bg-ink-200 rounded-xl px-3 py-2.5 text-sm text-ink-500"><i class="fa-solid fa-magnifying-glass"></i>ابحث برقم القضية أو الموكل أو الخصم<kbd class="mr-auto text-[10px] bg-white border border-ink-200 rounded px-1.5">/</kbd></button>
+        <button data-action="search" class="md:hidden w-10 h-10 rounded-xl border border-ink-200 text-ink-700" aria-label="بحث"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <button data-action="new-case" class="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-800 hover:bg-navy-900 text-white text-sm font-bold shadow-lg shadow-navy-900/20"><i class="fa-solid fa-folder-plus"></i>قضية جديدة</button>
+      </div>
+    </header>
+    <main id="view" class="max-w-6xl mx-auto px-4 py-5 pb-28 lg:pb-10"></main>
+  </div>
+</div>
+
+<nav id="bottomNav" class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-ink-200 grid grid-cols-4 pb-safe pt-1.5"></nav>
+<button data-action="new-case" class="sm:hidden fixed z-30 bottom-20 left-4 w-14 h-14 rounded-2xl bg-navy-800 text-white shadow-xl shadow-navy-900/30 text-xl" aria-label="قضية جديدة"><i class="fa-solid fa-folder-plus"></i></button>
+
+<!-- Overlay + drawer -->
+<div id="overlay" class="fixed inset-0 z-40 bg-ink-900/40 backdrop-blur-[2px] opacity-0 pointer-events-none transition-opacity duration-300"></div>
+<aside id="drawer" class="drawer fixed z-50 inset-x-0 bottom-0 sm:inset-y-0 sm:left-0 sm:right-auto sm:w-[560px] translate-y-full sm:translate-y-0 sm:-translate-x-full bg-white rounded-t-3xl sm:rounded-none max-h-[94vh] sm:max-h-none flex flex-col shadow-2xl" role="dialog" aria-modal="true">
+  <div class="flex items-center justify-between px-5 h-14 border-b border-ink-200 shrink-0">
+    <button id="drawerBack" class="w-9 h-9 rounded-full hover:bg-ink-100 invisible" aria-label="رجوع"><i class="fa-solid fa-arrow-right"></i></button>
+    <h3 id="drawerTitle" class="font-bold"></h3>
+    <button data-action="close" class="w-9 h-9 rounded-full hover:bg-ink-100" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div id="drawerBody" class="flex-1 overflow-y-auto"></div>
+  <div id="drawerFoot" class="border-t border-ink-200 p-4 pb-safe shrink-0 empty:hidden"></div>
+</aside>
+
+<!-- Global search (command palette) -->
+<div id="searchBox" class="fixed inset-0 z-[60] hidden">
+  <div class="absolute inset-0 bg-ink-900/50" data-action="close-search"></div>
+  <div class="relative max-w-xl mx-auto mt-4 sm:mt-24 mx-3 sm:mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden fade-in">
+    <div class="flex items-center gap-3 px-4 border-b border-ink-200"><i class="fa-solid fa-magnifying-glass text-ink-400"></i>
+      <input id="gq" placeholder="رقم القضية، اسم الموكل، الخصم، المحكمة..." class="flex-1 py-4 text-base focus:outline-none" autocomplete="off">
+      <button data-action="close-search" class="text-xs text-ink-500 border border-ink-200 rounded px-2 py-1">Esc</button></div>
+    <div id="gResults" class="max-h-[60vh] overflow-y-auto"></div>
+  </div>
+</div>
+
+<div id="toast" class="fixed z-[70] top-4 left-1/2 -translate-x-1/2 bg-navy-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-2xl opacity-0 pointer-events-none transition-opacity duration-300 flex items-center gap-2 whitespace-nowrap"></div>
+<div id="printArea"></div>
+
+<script>
+/* =========================================================================
+   ميزان — Case management for law offices (demo; data stored in this browser)
+   Evidence & design references applied:
+   - ABA, Profile of Legal Malpractice Claims (2016–2019): administrative errors
+     (incl. calendaring) + client relations ≈ over 1/3 of claims; insurers report
+     missed deadlines as a leading claim source → deadlines & hearings are first-
+     class, with countdowns and an alert banner.
+   - Nielsen heuristics: recognition rather than recall → postponement reasons as
+     one-tap chips; next hearing pre-filled; status visible everywhere.
+   - Shneiderman (1996): overview → filter → details on demand (case drawer).
+   - Baymard: minimal required fields; inline validation; optional fields marked.
+   - WCAG 2.1 SC 1.4.1: never colour alone (text + icon on every status).
+   - Courts list, currency and country code are configurable (CURRENCY, COUNTRY_CODE).
+   ========================================================================= */
+
+/* ---------------- REFERENCE DATA ---------------- */
+const TYPES = ['مدني', 'تجاري', 'جنائي', 'أسرة', 'عقاري', 'شغل', 'إداري'];
+/* Office settings — easy to adapt for any country */
+const CURRENCY = 'درهم', COUNTRY_CODE = '212';
+const DEFAULT_COURTS = ['المحكمة الابتدائية', 'محكمة الاستئناف', 'المحكمة التجارية', 'المحكمة الابتدائية - الدائرة الثانية', 'المحكمة الإدارية', 'محكمة الأسرة'];
+const COURTS = DEFAULT_COURTS;
+const STATUS = {
+  active:       { label:'جارية',       icon:'fa-solid fa-circle-play',      cls:'bg-navy-50 text-navy-700 border-navy-200' },
+  deliberation: { label:'في المداولة', icon:'fa-solid fa-hourglass-half',   cls:'bg-gold-50 text-gold-600 border-gold-100' },
+  judged:       { label:'محكومة',      icon:'fa-solid fa-gavel',            cls:'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  archived:     { label:'مؤرشفة',      icon:'fa-solid fa-box-archive',      cls:'bg-ink-100 text-ink-500 border-ink-200' },
+};
+const REASONS = ['لإعداد الدفاع', 'لحضور الخصم', 'للإدلاء بالوثائق', 'لإجراء خبرة', 'لتبادل المذكرات', 'لاستدعاء الشهود', 'للصلح', 'لغياب القاضي'];
+
+/* ---------------- HELPERS ---------------- */
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const TODAY = () => ymd(new Date());
+const daysTo = s => Math.round((parseYmd(s) - parseYmd(TODAY())) / 864e5);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const num = n => Number(n).toLocaleString('ar-u-nu-latn');
+const money = n => num(n) + ' ' + CURRENCY;
+const fmtDay = s => parseYmd(s).toLocaleDateString('ar-u-nu-latn', { weekday:'long', day:'numeric', month:'long' });
+const fmtDate = s => parseYmd(s).toLocaleDateString('ar-u-nu-latn', { day:'numeric', month:'long', year:'numeric' });
+const fmtShort = s => parseYmd(s).toLocaleDateString('ar-u-nu-latn', { day:'numeric', month:'short' });
+function rel(s) {
+  const d = daysTo(s);
+  if (d === 0) return 'اليوم'; if (d === 1) return 'غداً'; if (d === -1) return 'أمس';
+  if (d > 1 && d < 7) return `بعد ${num(d)} أيام`; if (d < -1 && d > -7) return `منذ ${num(-d)} أيام`;
+  return fmtShort(s);
+}
+const fmtTime = t => { if (!t) return ''; const [h, m] = t.split(':').map(Number); return `${h % 12 || 12}:${pad(m)} ${h < 12 ? 'صباحاً' : 'مساءً'}`; };
+function toast(msg, icon = 'fa-circle-check', color = 'text-gold-400') {
+  const t = $('#toast'); t.innerHTML = `<i class="fa-solid ${icon} ${color}"></i><span>${msg}</span>`;
+  t.style.opacity = 1; clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, 2600);
+}
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+
+/* ---------------- SEED ---------------- */
+function seed() {
+  const now = new Date(), D = n => ymd(addDays(now, n));
+  const clients = [
+    { id:'c1', name:'شركة الأطلس للبناء', phone:'0522451020', kind:'شركة' },
+    { id:'c2', name:'محمد بنعلي', phone:'0661234578', kind:'فرد' },
+    { id:'c3', name:'يوسف العلمي', phone:'0670112233', kind:'فرد' },
+    { id:'c4', name:'شركة نور للتجارة', phone:'0537708899', kind:'شركة' },
+    { id:'c5', name:'عبد الله الفاسي', phone:'0612993344', kind:'فرد' },
+    { id:'c6', name:'حسن الوزاني', phone:'0655447788', kind:'فرد' },
+    { id:'c7', name:'تعاونية الخير الفلاحية', phone:'0528221144', kind:'شركة' },
+  ];
+  const mk = (id, number, title, type, court, room, clientId, role, opponent, opLawyer, status, next, hearings, deadlines, fees, notes = []) =>
+    ({ id, number, title, type, court, room, clientId, role, opponent, opLawyer, status, next, hearings, deadlines, fees, notes, opened: D(-120 + id.length * 7) });
+  const cases = [
+    mk('k1', '2026/8201/1145', 'استخلاص دين تجاري', 'تجاري', COURTS[2], 'القاعة 3', 'c1', 'مدعي', 'شركة المغرب للإسمنت', 'ذ. خالد بناني', 'active',
+      { date: D(0), time:'09:30', purpose:'تبادل المذكرات' },
+      [{ date: D(-28), result:'postponed', reason:'لحضور الخصم' }, { date: D(-14), result:'postponed', reason:'للإدلاء بالوثائق', note:'أدلينا بالفواتير وكشف الحساب' }],
+      [], { agreed: 15000, paid: 9000 }, [{ at: Date.now() - 3 * 864e5, text:'الموكل أكد توفر نسخ الفواتير الأصلية.' }]),
+    mk('k2', '2026/1201/377', 'تعويض عن حادثة سير', 'مدني', COURTS[0], 'القاعة 1', 'c2', 'مدعي', 'شركة التأمين الوطنية', 'ذ. سعيد التازي', 'active',
+      { date: D(0), time:'10:30', purpose:'مناقشة تقرير الخبرة' },
+      [{ date: D(-35), result:'postponed', reason:'لإجراء خبرة', note:'عُيّن الخبير الطبي' }, { date: D(-7), result:'postponed', reason:'لإعداد الدفاع' }],
+      [], { agreed: 8000, paid: 4000 }),
+    mk('k3', '2026/1611/92', 'نزاع حول الحضانة', 'أسرة', COURTS[5], 'الغرفة 2', 'c3', 'مدعى عليه', 'الطرف الآخر', '—', 'active',
+      { date: D(0), time:'11:00', purpose:'جلسة الصلح' },
+      [{ date: D(-21), result:'postponed', reason:'للصلح' }], [], { agreed: 6000, paid: 6000 }),
+    mk('k4', '2026/8202/510', 'فسخ عقد توريد', 'تجاري', COURTS[2], 'القاعة 5', 'c4', 'مدعي', 'شركة الشمال للتوزيع', 'ذ. أحمد الحسني', 'active',
+      { date: D(1), time:'09:00', purpose:'الإدلاء بالوثائق' },
+      [{ date: D(-20), result:'postponed', reason:'لتبادل المذكرات' }], [], { agreed: 20000, paid: 10000 }),
+    mk('k5', '2026/1302/66', 'طرد للاحتلال بدون سند', 'عقاري', COURTS[3], 'القاعة 2', 'c5', 'مدعي', 'المحتل للعقار', '—', 'active',
+      { date: D(1), time:'10:00', purpose:'استدعاء الشهود' },
+      [{ date: D(-30), result:'postponed', reason:'لاستدعاء الشهود' }], [], { agreed: 7000, paid: 3500 }),
+    mk('k6', '2026/1501/203', 'طرد تعسفي ومستحقات', 'شغل', COURTS[0], 'القاعة 4', 'c6', 'مدعي', 'شركة النسيج الحديث', 'ذ. رشيد المرابط', 'active',
+      { date: D(3), time:'09:30', purpose:'الإدلاء بشهادة العمل' },
+      [{ date: D(-25), result:'postponed', reason:'للإدلاء بالوثائق' }], [], { agreed: 5000, paid: 2000 }),
+    mk('k7', '2026/7110/41', 'إلغاء قرار إداري', 'إداري', COURTS[4], 'القاعة 1', 'c7', 'مدعي', 'الجماعة الترابية', 'الوكيل القضائي', 'active',
+      { date: D(5), time:'11:30', purpose:'تعقيب على المذكرة الجوابية' },
+      [{ date: D(-40), result:'postponed', reason:'لتبادل المذكرات' }], [], { agreed: 12000, paid: 6000 }),
+    mk('k8', '2026/2102/18', 'خيانة الأمانة', 'جنائي', COURTS[0], 'الغرفة الجنحية', 'c5', 'مطالب بالحق المدني', 'المتهم', 'ذ. عادل الكتاني', 'active',
+      { date: D(6), time:'09:00', purpose:'المرافعة' },
+      [{ date: D(-15), result:'postponed', reason:'لغياب القاضي' }], [], { agreed: 10000, paid: 5000 }),
+    mk('k9', '2026/8201/990', 'أداء قيمة شيكات', 'تجاري', COURTS[2], 'القاعة 3', 'c4', 'مدعي', 'مؤسسة البركة', 'ذ. خالد بناني', 'deliberation',
+      { date: D(2), time:'', purpose:'النطق بالحكم' },
+      [{ date: D(-30), result:'postponed', reason:'لتبادل المذكرات' }, { date: D(-5), result:'deliberation', note:'حُجزت القضية للمداولة' }], [], { agreed: 9000, paid: 9000 }),
+    mk('k10', '2025/1201/1880', 'استرداد مبلغ مالي', 'مدني', COURTS[0], 'القاعة 2', 'c2', 'مدعى عليه', 'عبد الرحيم السلاوي', 'ذ. منير القادري', 'judged',
+      null, [{ date: D(-60), result:'postponed', reason:'لإعداد الدفاع' }, { date: D(-25), result:'judgment', note:'حكم ابتدائي ضد الموكل جزئياً' }],
+      [{ id:'d1', title:'أجل الاستئناف', date: D(4), done:false }], { agreed: 6000, paid: 6000 }),
+    mk('k11', '2025/8202/4410', 'منافسة غير مشروعة', 'تجاري', COURTS[2], 'القاعة 5', 'c1', 'مدعى عليه', 'شركة البناء الحديث', 'ذ. أحمد الحسني', 'judged',
+      null, [{ date: D(-90), result:'postponed', reason:'لإجراء خبرة' }, { date: D(-20), result:'judgment', note:'رفض الطلب، الحكم لصالح الموكل' }],
+      [{ id:'d2', title:'آخر أجل لاستئناف الخصم (للمتابعة)', date: D(10), done:false }], { agreed: 25000, paid: 20000 }),
+    mk('k12', '2025/1611/310', 'نفقة', 'أسرة', COURTS[5], 'الغرفة 1', 'c6', 'مدعى عليه', 'الطرف الآخر', '—', 'archived',
+      null, [{ date: D(-150), result:'judgment', note:'صدر الحكم ونُفّذ' }], [], { agreed: 4000, paid: 4000 }),
+  ];
+  cases[6].deadlines = [{ id:'d3', title:'إيداع المذكرة التعقيبية', date: D(2), done:false }];
+  return { clients, cases, courts: [...DEFAULT_COURTS] };
+}
+let db = store.get('mizan_db2', null);
+if (!db) { db = seed(); store.set('mizan_db2', db); }
+if (!db.courts) db.courts = [...DEFAULT_COURTS];
+const save = () => store.set('mizan_db2', db);
+const client = id => db.clients.find(c => c.id === id) || { name:'—', phone:'' };
+const kase = id => db.cases.find(c => c.id === id);
+
+/* ---------------- DERIVED ---------------- */
+const openCases = () => db.cases.filter(c => c.status === 'active' || c.status === 'deliberation');
+function upcoming(days = 7, from = 0) {
+  return db.cases.filter(c => c.next && daysTo(c.next.date) >= from && daysTo(c.next.date) < days)
+    .sort((a, b) => (a.next.date + (a.next.time || '99')).localeCompare(b.next.date + (b.next.time || '99')));
+}
+function allDeadlines() {
+  const out = [];
+  db.cases.forEach(c => (c.deadlines || []).filter(d => !d.done).forEach(d => out.push({ c, d })));
+  return out.sort((a, b) => a.d.date.localeCompare(b.d.date));
+}
+const lastHearing = c => [...(c.hearings || [])].sort((a, b) => a.date.localeCompare(b.date)).pop() || null;
+function prevText(h) {
+  if (!h) return 'لا توجد جلسة سابقة';
+  const what = h.result === 'postponed' ? `تأجيل ${h.reason || ''}` : h.result === 'deliberation' ? 'حجز للمداولة' : h.result === 'judgment' ? 'صدور الحكم' : 'انعقاد الجلسة';
+  return `${fmtShort(h.date)} — ${what}`;
+}
+const missedNext = () => db.cases.filter(c => c.next && daysTo(c.next.date) < 0);   // hearing passed without a recorded result
+
+/* ---------------- STATE / NAV ---------------- */
+let state = Object.assign({ view:'today', q:'', fStatus:'open', fType:'all', fClient:'all', agendaDays:14 }, store.get('mizan_ui', {}));
+const saveUi = () => store.set('mizan_ui', { view: state.view });
+const VIEWS = {
+  today:   { label:'اليوم',     icon:'fa-solid fa-sun' },
+  cases:   { label:'القضايا',   icon:'fa-solid fa-folder-open' },
+  agenda:  { label:'الجلسات',   icon:'fa-regular fa-calendar' },
+  clients: { label:'الموكلون',  icon:'fa-solid fa-user-tie' },
+};
+function renderNav() {
+  const alerts = allDeadlines().filter(x => daysTo(x.d.date) <= 7).length + missedNext().length;
+  $('#sideNav').innerHTML = Object.entries(VIEWS).map(([k, v]) => `
+    <button data-view="${k}" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition ${state.view === k ? 'bg-white/10 text-white font-bold' : 'text-navy-200 hover:bg-white/5 hover:text-white'}">
+      <i class="${v.icon} w-5 text-center ${state.view === k ? 'text-gold-400' : ''}"></i><span class="flex-1 text-right">${v.label}</span>
+      ${k === 'today' && alerts ? `<span class="text-[11px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-md" title="تنبيهات">${num(alerts)}</span>` : ''}
+    </button>`).join('');
+  $('#bottomNav').innerHTML = Object.entries(VIEWS).map(([k, v]) => `
+    <button data-view="${k}" class="relative flex flex-col items-center gap-1 py-1.5 text-[11px] ${state.view === k ? 'text-navy-800 font-bold' : 'text-ink-500'}">
+      <i class="${v.icon} text-lg ${state.view === k ? 'text-gold-500' : ''}"></i>${v.label}
+      ${k === 'today' && alerts ? `<span class="absolute top-0 left-1/2 ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">${num(alerts)}</span>` : ''}
+    </button>`).join('');
+}
+function render() {
+  renderNav();
+  $('#pageTitle').textContent = VIEWS[state.view].label;
+  $('#pageSub').textContent = 'مكتب الأستاذ عمر الإدريسي • ' + fmtDay(TODAY());
+  ({ today: renderToday, cases: renderCases, agenda: renderAgenda, clients: renderClients })[state.view]();
+}
+
+/* ---------------- SHARED UI ---------------- */
+const statusChip = s => `<span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border ${STATUS[s].cls}"><i class="${STATUS[s].icon} text-[10px]"></i>${STATUS[s].label}</span>`;
+function countdown(date) {
+  const d = daysTo(date);
+  const cls = d < 0 ? 'bg-red-600 text-white' : d <= 3 ? 'bg-red-50 text-red-700 border border-red-200' : d <= 7 ? 'bg-gold-50 text-gold-600 border border-gold-100' : 'bg-ink-100 text-ink-700';
+  const txt = d < 0 ? `انتهى منذ ${num(-d)} يوم` : d === 0 ? 'ينتهي اليوم' : `باقي ${num(d)} ${d === 1 ? 'يوم' : d <= 10 ? 'أيام' : 'يوماً'}`;
+  return `<span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${cls}"><i class="fa-solid fa-stopwatch text-[10px]"></i>${txt}</span>`;
+}
+function hearingCard(c, showDay) {
+  const cl = client(c.clientId), n = c.next;
+  return `<button data-case="${c.id}" class="fade-in w-full text-right flex gap-3 sm:gap-4 p-4 hover:bg-ink-50 transition">
+    <div class="w-16 shrink-0 text-center">
+      ${showDay ? `<div class="text-[11px] font-bold text-gold-600">${rel(n.date)}</div>` : ''}
+      <div class="text-lg font-bold leading-tight text-navy-800">${n.time ? fmtTime(n.time).split(' ')[0] : '—'}</div>
+      <div class="text-[10px] text-ink-500">${n.time ? fmtTime(n.time).split(' ')[1] : 'بدون وقت'}</div>
+    </div>
+    <div class="w-px bg-navy-100 self-stretch"></div>
+    <div class="flex-1 min-w-0">
+      <div class="flex flex-wrap items-center gap-1.5 mb-1"><span class="font-mono text-xs font-bold text-navy-700" dir="ltr">${esc(c.number)}</span>${c.status !== 'active' ? statusChip(c.status) : ''}</div>
+      <div class="font-bold leading-snug">${esc(c.title)}</div>
+      <div class="text-xs text-ink-500 mt-0.5 truncate"><i class="fa-solid fa-user-tie ml-1 text-[10px]"></i>${esc(cl.name)} <span class="mx-1">ضد</span> ${esc(c.opponent)}</div>
+      <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-ink-700">
+        <span><i class="fa-solid fa-landmark ml-1 text-ink-400"></i>${esc(c.court)}${c.room ? ' • ' + esc(c.room) : ''}</span>
+        ${n.purpose ? `<span class="text-navy-700 font-semibold"><i class="fa-solid fa-thumbtack ml-1 text-gold-500"></i>${esc(n.purpose)}</span>` : ''}
+      </div>
+      ${lastHearing(c) ? `<div class="text-[11px] text-ink-500 mt-1"><i class="fa-solid fa-clock-rotate-left ml-1"></i>الجلسة السابقة: ${esc(prevText(lastHearing(c)))}</div>` : ''}
+    </div>
+  </button>`;
+}
+const empty = (icon, title, sub) => `<div class="text-center py-12 px-4"><i class="${icon} text-4xl text-ink-300 mb-3"></i><p class="font-bold">${title}</p>${sub ? `<p class="text-sm text-ink-500 mt-1">${sub}</p>` : ''}</div>`;
+
+/* ---------------- TODAY ---------------- */
+function renderToday() {
+  const today = upcoming(1, 0), tomorrow = upcoming(2, 1), week = upcoming(7, 0);
+  const dls = allDeadlines(), urgent = dls.filter(x => daysTo(x.d.date) <= 7), missed = missedNext();
+  const hello = new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير';
+  $('#view').innerHTML = `
+    <section class="fade-in relative overflow-hidden rounded-3xl bg-navy-900 text-white p-5 sm:p-7 mb-5 shadow-xl shadow-navy-900/20">
+      <i class="fa-solid fa-scale-balanced absolute -left-6 -bottom-8 text-[150px] text-white/5"></i>
+      <div class="relative">
+        <div class="text-sm text-navy-200 mb-1">${hello}، أستاذ عمر</div>
+        <h2 class="text-xl sm:text-2xl font-bold leading-snug mb-4">${today.length ? `لديك <span class="text-gold-400">${num(today.length)}</span> جلسات اليوم` : 'لا جلسات لديك اليوم'}${tomorrow.length ? `، و${num(tomorrow.length)} غداً` : ''}</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          ${stat('قضايا جارية', openCases().length, "data-view='cases'")}
+          ${stat('جلسات هذا الأسبوع', week.length, "data-view='agenda'")}
+          ${stat('آجال خلال 7 أيام', urgent.length, "data-jump='deadlines'", urgent.length > 0)}
+          ${stat('أتعاب غير محصّلة', null, "data-view='clients'", false, money(db.cases.reduce((s, c) => s + Math.max(0, (c.fees?.agreed || 0) - (c.fees?.paid || 0)), 0)))}
+        </div>
+      </div>
+    </section>
+
+    ${missed.length ? `<section class="fade-in mb-5 rounded-2xl border-2 border-red-200 bg-red-50 p-4">
+      <div class="flex items-start gap-3"><span class="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-triangle-exclamation"></i></span>
+        <div class="flex-1"><div class="font-bold text-red-800">جلسات مرّت بدون تسجيل نتيجتها (${num(missed.length)})</div>
+          <p class="text-xs text-red-700 mb-2">سجّل ما حدث في الجلسة وتاريخ الجلسة القادمة حتى لا يضيع أي موعد.</p>
+          <div class="flex flex-wrap gap-2">${missed.map(c => `<button data-record="${c.id}" class="text-xs font-bold bg-white border border-red-200 text-red-800 px-3 py-1.5 rounded-lg"><span dir="ltr">${esc(c.number)}</span> • سجّل النتيجة</button>`).join('')}</div></div></div>
+    </section>` : ''}
+
+    <div class="grid lg:grid-cols-5 gap-5">
+      <section class="lg:col-span-3 bg-white border border-ink-200 rounded-2xl overflow-hidden">
+        <div class="flex items-center justify-between gap-3 p-4 sm:p-5 border-b border-ink-100">
+          <div><h3 class="text-lg font-bold">جلسات اليوم</h3><p class="text-xs text-ink-500">${fmtDay(TODAY())}</p></div>
+          <button data-action="print" class="text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 px-3 py-2 rounded-lg"><i class="fa-solid fa-print ml-1"></i>طباعة الرول</button>
+        </div>
+        <div class="divide-y divide-ink-100">${today.length ? today.map(c => hearingCard(c)).join('') : empty('fa-regular fa-calendar-check', 'لا جلسات اليوم', 'استغل اليوم لإعداد مذكرات جلسات الغد.')}</div>
+        ${tomorrow.length ? `<div class="px-4 sm:px-5 py-2 bg-ink-50 border-y border-ink-100 text-xs font-bold text-ink-700">غداً • ${fmtDay(ymd(addDays(new Date(), 1)))}</div>
+          <div class="divide-y divide-ink-100">${tomorrow.map(c => hearingCard(c)).join('')}</div>` : ''}
+      </section>
+
+      <div class="lg:col-span-2 space-y-5">
+        <section id="deadlines" class="bg-white border border-ink-200 rounded-2xl">
+          <div class="p-4 sm:p-5 pb-3"><h3 class="font-bold"><i class="fa-solid fa-stopwatch text-red-600 ml-1.5"></i>الآجال القانونية</h3>
+            <p class="text-xs text-ink-500">آجال الطعن والإيداع — الأقرب أولاً</p></div>
+          <div class="px-2 pb-2">${dls.length ? dls.slice(0, 6).map(({ c, d }) => `
+            <div class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-ink-50">
+              <input type="checkbox" data-dldone="${c.id}|${d.id}" class="w-5 h-5 accent-emerald-600 shrink-0" aria-label="تم: ${esc(d.title)}">
+              <button data-case="${c.id}" class="flex-1 min-w-0 text-right">
+                <div class="text-sm font-bold truncate">${esc(d.title)}</div>
+                <div class="text-[11px] text-ink-500 truncate"><span dir="ltr">${esc(c.number)}</span> • ${esc(client(c.clientId).name)} • ${fmtShort(d.date)}</div>
+              </button>${countdown(d.date)}
+            </div>`).join('') : empty('fa-regular fa-circle-check', 'لا آجال مفتوحة')}</div>
+        </section>
+        <section class="bg-white border border-ink-200 rounded-2xl p-4 sm:p-5">
+          <div class="flex items-center justify-between mb-3"><h3 class="font-bold">باقي الأسبوع</h3><button data-view="agenda" class="text-xs font-bold text-navy-700 hover:underline">كل الجلسات</button></div>
+          ${upcoming(7, 2).length ? `<ol class="space-y-3">${upcoming(7, 2).map(c => `
+            <li><button data-case="${c.id}" class="w-full text-right flex items-center gap-3">
+              <span class="w-12 shrink-0 text-center rounded-xl bg-navy-50 py-1.5"><span class="block text-[10px] text-navy-500">${parseYmd(c.next.date).toLocaleDateString('ar-u-nu-latn', { weekday:'short' })}</span><span class="block font-bold text-navy-800">${num(parseYmd(c.next.date).getDate())}</span></span>
+              <span class="flex-1 min-w-0"><span class="block text-sm font-semibold truncate">${esc(c.title)}</span><span class="block text-[11px] text-ink-500 truncate">${esc(client(c.clientId).name)} • ${esc(c.next.purpose || '')}</span></span>
+            </button></li>`).join('')}</ol>` : '<p class="text-sm text-ink-500">لا جلسات أخرى هذا الأسبوع.</p>'}
+        </section>
+      </div>
+    </div>`;
+}
+function stat(label, n, attrs, alert, text) {
+  return `<button ${attrs} class="text-right rounded-2xl ${alert ? 'bg-red-500/20 ring-1 ring-red-300/40' : 'bg-white/10'} hover:bg-white/15 p-3 transition">
+    <div class="text-xl sm:text-2xl font-bold leading-none mb-1 ${alert ? 'text-red-200' : ''}">${text || num(n)}</div>
+    <div class="text-[11px] text-navy-200">${label}</div></button>`;
+}
+
+/* ---------------- CASES (filter) ---------------- */
+function filteredCases() {
+  const q = state.q.trim();
+  return db.cases.filter(c => {
+    const cl = client(c.clientId);
+    if (q && !(c.number + ' ' + c.title + ' ' + cl.name + ' ' + c.opponent + ' ' + c.court + ' ' + c.type).includes(q)) return false;
+    if (state.fStatus === 'open' && !(c.status === 'active' || c.status === 'deliberation')) return false;
+    if (!['open', 'all'].includes(state.fStatus) && c.status !== state.fStatus) return false;
+    if (state.fType !== 'all' && c.type !== state.fType) return false;
+    if (state.fClient !== 'all' && c.clientId !== state.fClient) return false;
+    return true;
+  }).sort((a, b) => (a.next ? a.next.date : '9999').localeCompare(b.next ? b.next.date : '9999'));
+}
+function renderCases() {
+  const list = filteredCases();
+  const sChips = [['open', 'المفتوحة'], ['all', 'الكل'], ...Object.entries(STATUS).map(([k, v]) => [k, v.label])];
+  $('#view').innerHTML = `
+    <div class="relative mb-3"><i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-ink-400"></i>
+      <input id="q" type="search" value="${esc(state.q)}" placeholder="ابحث برقم القضية أو الموكل أو الخصم أو المحكمة" class="w-full bg-white border border-ink-200 rounded-xl pr-10 pl-3 py-3 text-sm focus:outline-none focus:border-navy-500"></div>
+    <div class="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 pb-2">${sChips.map(([k, l]) => `<button data-fstatus="${k}" class="shrink-0 px-3.5 py-1.5 rounded-full border text-xs font-bold ${state.fStatus === k ? 'chip-on' : 'border-ink-200 bg-white text-ink-700'}">${l}</button>`).join('')}</div>
+    <div class="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 pb-3">
+      <label><span class="sr-only">نوع الدعوى</span><select id="fType" class="bg-white border border-ink-200 rounded-xl px-3 py-2 text-xs font-semibold">
+        <option value="all">نوع الدعوى: الكل</option>${TYPES.map(t => `<option ${state.fType === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+      <label><span class="sr-only">الموكل</span><select id="fClient" class="bg-white border border-ink-200 rounded-xl px-3 py-2 text-xs font-semibold">
+        <option value="all">الموكل: الكل</option>${db.clients.map(c => `<option value="${c.id}" ${state.fClient === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+    </div>
+    <div class="text-xs text-ink-500 mb-3">${num(list.length)} قضية • مرتبة حسب أقرب جلسة</div>
+    <div class="grid md:grid-cols-2 gap-3">${list.length ? list.map(c => {
+      const cl = client(c.clientId), dl = (c.deadlines || []).filter(d => !d.done)[0];
+      return `<button data-case="${c.id}" class="fade-in text-right bg-white border border-ink-200 hover:border-navy-200 hover:shadow-md rounded-2xl p-4 transition">
+        <div class="flex items-center justify-between gap-2 mb-2"><span class="font-mono text-xs font-bold text-navy-700" dir="ltr">${esc(c.number)}</span>${statusChip(c.status)}</div>
+        <div class="font-bold mb-1">${esc(c.title)}</div>
+        <div class="text-xs text-ink-500 mb-3"><span class="font-semibold text-ink-700">${esc(cl.name)}</span> (${esc(c.role)}) ضد ${esc(c.opponent)}</div>
+        <div class="flex flex-wrap items-center gap-2 text-[11px]">
+          <span class="bg-ink-100 text-ink-700 px-2 py-0.5 rounded-md">${esc(c.type)}</span>
+          <span class="text-ink-500 truncate max-w-[180px]"><i class="fa-solid fa-landmark ml-1"></i>${esc(c.court)}</span>
+        </div>
+        <div class="mt-3 pt-3 border-t border-ink-100 text-[11px] text-ink-500"><i class="fa-solid fa-clock-rotate-left ml-1"></i>الجلسة السابقة: ${esc(prevText(lastHearing(c)))}</div>
+        <div class="mt-1.5 flex items-center justify-between gap-2 text-xs">
+          ${c.next ? `<span class="${daysTo(c.next.date) < 0 ? 'text-red-700 font-bold' : daysTo(c.next.date) <= 1 ? 'text-gold-600 font-bold' : 'text-ink-700'}"><i class="fa-regular fa-calendar ml-1"></i>${daysTo(c.next.date) < 0 ? 'جلسة بدون نتيجة: ' : 'الجلسة القادمة: '}${rel(c.next.date)}${c.next.time ? ' • ' + fmtTime(c.next.time) : ''}</span>` : '<span class="text-ink-400">لا جلسة قادمة</span>'}
+          ${dl ? countdown(dl.date) : ''}
+        </div>
+      </button>`; }).join('') : `<div class="md:col-span-2 bg-white border border-ink-200 rounded-2xl">${empty('fa-solid fa-folder-open', 'لا توجد قضايا مطابقة', 'جرّب تغيير البحث أو الفلاتر.')}</div>`}</div>`;
+  let tq; $('#q').addEventListener('input', e => { clearTimeout(tq); tq = setTimeout(() => { state.q = e.target.value; const p = e.target.selectionStart; renderCases(); const el = $('#q'); el.focus(); el.setSelectionRange(p, p); }, 180); });
+  $('#fType').onchange = e => { state.fType = e.target.value; renderCases(); };
+  $('#fClient').onchange = e => { state.fClient = e.target.value; renderCases(); };
+}
+
+/* ---------------- AGENDA ---------------- */
+function renderAgenda() {
+  const days = []; for (let i = 0; i < state.agendaDays; i++) days.push(ymd(addDays(new Date(), i)));
+  const list = upcoming(state.agendaDays, 0), missed = missedNext();
+  $('#view').innerHTML = `
+    <div class="flex items-center justify-between gap-3 mb-4">
+      <div class="flex bg-ink-100 rounded-xl p-1 text-xs font-bold">${[[7, '7 أيام'], [14, 'أسبوعان'], [30, 'شهر']].map(([n, l]) => `<button data-days="${n}" class="px-3 py-1.5 rounded-lg ${state.agendaDays === n ? 'bg-white shadow-sm text-navy-800' : 'text-ink-500'}">${l}</button>`).join('')}</div>
+      <button data-action="print" class="px-3 py-2 rounded-xl bg-navy-800 text-white text-xs font-bold"><i class="fa-solid fa-print ml-1"></i>طباعة</button>
+    </div>
+    <div class="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 pb-4">${days.slice(0, 14).map(d => {
+      const n = list.filter(c => c.next.date === d).length, dt = parseYmd(d);
+      return `<a href="#day-${d}" class="shrink-0 w-14 text-center rounded-2xl py-2 border ${d === TODAY() ? 'bg-navy-800 text-white border-navy-800' : 'bg-white border-ink-200'}">
+        <div class="text-[10px] ${d === TODAY() ? 'text-navy-200' : 'text-ink-500'}">${d === TODAY() ? 'اليوم' : dt.toLocaleDateString('ar-u-nu-latn', { weekday:'short' })}</div>
+        <div class="font-bold">${num(dt.getDate())}</div>
+        <div class="text-[10px] font-bold ${n ? (d === TODAY() ? 'text-gold-400' : 'text-gold-600') : 'opacity-30'}">${n ? num(n) + ' جلسة' : '—'}</div></a>`; }).join('')}</div>
+    ${missed.length ? `<section class="bg-red-50 border border-red-200 rounded-2xl mb-4 overflow-hidden"><div class="px-4 py-2 text-xs font-bold text-red-800 border-b border-red-200"><i class="fa-solid fa-triangle-exclamation ml-1"></i>جلسات مرّت بدون تسجيل نتيجة</div>
+      <div class="divide-y divide-red-100">${missed.map(c => hearingCard(c, true)).join('')}</div></section>` : ''}
+    ${days.filter(d => list.some(c => c.next.date === d)).map(d => `
+      <section id="day-${d}" class="bg-white border border-ink-200 rounded-2xl mb-4 overflow-hidden scroll-mt-20">
+        <div class="px-4 py-2.5 bg-navy-50 border-b border-navy-100 flex items-center justify-between"><span class="text-sm font-bold text-navy-800">${d === TODAY() ? 'اليوم • ' : ''}${fmtDay(d)}</span><span class="text-xs text-navy-500">${num(list.filter(c => c.next.date === d).length)} جلسة</span></div>
+        <div class="divide-y divide-ink-100">${list.filter(c => c.next.date === d).map(c => hearingCard(c)).join('')}</div>
+      </section>`).join('') || `<div class="bg-white border border-ink-200 rounded-2xl">${empty('fa-regular fa-calendar', 'لا جلسات في هذه الفترة')}</div>`}`;
+}
+
+/* ---------------- CLIENTS ---------------- */
+function renderClients() {
+  $('#view').innerHTML = `<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">${db.clients.map(cl => {
+    const cs = db.cases.filter(c => c.clientId === cl.id), open = cs.filter(c => c.status === 'active' || c.status === 'deliberation');
+    const due = cs.reduce((s, c) => s + Math.max(0, (c.fees?.agreed || 0) - (c.fees?.paid || 0)), 0);
+    const next = cs.filter(c => c.next && daysTo(c.next.date) >= 0).sort((a, b) => a.next.date.localeCompare(b.next.date))[0];
+    return `<article class="fade-in bg-white border border-ink-200 rounded-2xl p-5">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="w-12 h-12 rounded-2xl ${cl.kind === 'شركة' ? 'bg-gold-50 text-gold-600' : 'bg-navy-50 text-navy-700'} flex items-center justify-center"><i class="fa-solid ${cl.kind === 'شركة' ? 'fa-building' : 'fa-user-tie'}"></i></span>
+        <div class="min-w-0"><div class="font-bold truncate">${esc(cl.name)}</div><div class="text-xs text-ink-500" dir="ltr">${esc(cl.phone)}</div></div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center mb-4">
+        <div class="bg-ink-50 rounded-xl py-2"><div class="font-bold">${num(open.length)}</div><div class="text-[10px] text-ink-500">مفتوحة</div></div>
+        <div class="bg-ink-50 rounded-xl py-2"><div class="font-bold">${num(cs.length)}</div><div class="text-[10px] text-ink-500">كل القضايا</div></div>
+        <div class="${due ? 'bg-gold-50' : 'bg-ink-50'} rounded-xl py-2"><div class="font-bold text-sm ${due ? 'text-gold-600' : ''}">${num(due)}</div><div class="text-[10px] text-ink-500">باقي (درهم)</div></div>
+      </div>
+      <div class="text-xs text-ink-700 mb-4 min-h-[18px]">${next ? `<i class="fa-regular fa-calendar ml-1 text-gold-500"></i>أقرب جلسة: <b>${rel(next.next.date)}</b> — ${esc(next.title)}` : '<span class="text-ink-400">لا جلسات قادمة</span>'}</div>
+      <div class="grid grid-cols-3 gap-2">
+        <button data-clientcases="${cl.id}" class="col-span-2 py-2.5 rounded-xl bg-navy-800 hover:bg-navy-900 text-white text-xs font-bold">عرض قضاياه</button>
+        <a href="https://wa.me/${COUNTRY_CODE}${esc(cl.phone.replace(/^0/, ''))}" target="_blank" rel="noopener" class="py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-center text-sm" title="مراسلة الموكل عبر واتساب"><i class="fa-brands fa-whatsapp"></i></a>
+      </div>
+    </article>`; }).join('')}</div>`;
+}
+
+/* ---------------- DRAWER ---------------- */
+let drawerStack = [];
+const drawerOpen = () => $('#drawer').dataset.open === '1';
+function showDrawer() { const d = $('#drawer'); d.dataset.open = '1'; d.classList.remove('translate-y-full', 'sm:-translate-x-full'); d.classList.add('sm:translate-x-0');
+  const o = $('#overlay'); o.style.opacity = 1; o.style.pointerEvents = 'auto'; document.body.style.overflow = 'hidden'; }
+function hideDrawer() { const d = $('#drawer'); d.dataset.open = '0'; d.classList.add('translate-y-full', 'sm:-translate-x-full'); d.classList.remove('sm:translate-x-0');
+  const o = $('#overlay'); o.style.opacity = 0; o.style.pointerEvents = 'none'; document.body.style.overflow = ''; drawerStack = []; }
+function setBack(fn) { const b = $('#drawerBack'); b.classList.toggle('invisible', !fn); b.onclick = fn || null; }
+
+/* Case details — details on demand */
+let caseTab = 'summary';
+function openCase(id, tab) {
+  const c = kase(id); if (!c) return; if (tab) caseTab = tab;
+  const cl = client(c.clientId), fees = c.fees || { agreed: 0, paid: 0 }, due = Math.max(0, fees.agreed - fees.paid);
+  const openDl = (c.deadlines || []).filter(d => !d.done);
+  $('#drawerTitle').textContent = 'ملف القضية'; setBack(null);
+  const TABS = [['summary', 'الملخص'], ['hearings', `الجلسات (${num(c.hearings.length)})`], ['deadlines', `الآجال${openDl.length ? ` (${num(openDl.length)})` : ''}`], ['fees', 'الأتعاب'], ['notes', `ملاحظات${c.notes?.length ? ` (${num(c.notes.length)})` : ''}`]];
+  $('#drawerBody').innerHTML = `
+    <div class="p-5 pb-0 fade-in">
+      <div class="flex flex-wrap items-center gap-2 mb-2"><span class="font-mono text-sm font-bold text-navy-700 bg-navy-50 px-2 py-0.5 rounded-md" dir="ltr">${esc(c.number)}</span>${statusChip(c.status)}<span class="text-[11px] bg-ink-100 text-ink-700 px-2 py-0.5 rounded-md">${esc(c.type)}</span></div>
+      <h2 class="text-xl font-bold mb-1">${esc(c.title)}</h2>
+      <p class="text-sm text-ink-500 mb-4"><i class="fa-solid fa-landmark ml-1"></i>${esc(c.court)}${c.room ? ' • ' + esc(c.room) : ''}</p>
+      <div class="grid grid-cols-1 gap-2 mb-2">
+        <div class="rounded-2xl bg-ink-50 border border-ink-200 p-3 flex items-center gap-3">
+          <span class="w-9 h-9 rounded-xl bg-white border border-ink-200 text-ink-500 flex items-center justify-center shrink-0"><i class="fa-solid fa-clock-rotate-left"></i></span>
+          <div class="min-w-0"><div class="text-[11px] text-ink-500">الجلسة السابقة</div><div class="text-sm font-bold">${esc(prevText(lastHearing(c)))}</div>
+          ${lastHearing(c)?.note ? `<div class="text-xs text-ink-500 truncate">${esc(lastHearing(c).note)}</div>` : ''}</div>
+        </div>
+      </div>
+      ${c.next ? `<div class="rounded-2xl ${daysTo(c.next.date) < 0 ? 'bg-red-50 border border-red-200' : 'bg-navy-900 text-white'} p-4 mb-4 flex items-center gap-4">
+        <div class="text-center w-14 shrink-0"><div class="text-[10px] ${daysTo(c.next.date) < 0 ? 'text-red-700' : 'text-gold-400'} font-bold">${rel(c.next.date)}</div><div class="text-2xl font-bold leading-none">${num(parseYmd(c.next.date).getDate())}</div><div class="text-[10px] opacity-70">${parseYmd(c.next.date).toLocaleDateString('ar-u-nu-latn', { month:'short' })}</div></div>
+        <div class="flex-1 min-w-0"><div class="text-[11px] ${daysTo(c.next.date) < 0 ? 'text-red-700' : 'text-navy-200'}">${daysTo(c.next.date) < 0 ? 'الجلسة مرّت — سجّل نتيجتها' : 'الجلسة القادمة'}</div>
+          <div class="font-bold">${esc(c.next.purpose || 'جلسة')}</div><div class="text-xs opacity-80">${c.next.time ? fmtTime(c.next.time) : 'بدون وقت محدد'}${c.room ? ' • ' + esc(c.room) : ''}</div></div>
+        <button data-record="${c.id}" class="shrink-0 px-3 py-2 rounded-xl ${daysTo(c.next.date) < 0 ? 'bg-red-600 text-white' : 'bg-gold-500 text-navy-900'} text-xs font-bold"><i class="fa-solid fa-pen-to-square ml-1"></i>نتيجة الجلسة</button>
+      </div>` : ''}
+      <div class="flex gap-1 overflow-x-auto no-scrollbar border-b border-ink-200 -mx-5 px-5">${TABS.map(([k, l]) => `<button data-tab="${k}" data-id="${c.id}" class="shrink-0 px-3 py-2.5 text-sm font-semibold border-b-2 ${caseTab === k ? 'border-gold-500 text-navy-800' : 'border-transparent text-ink-500'}">${l}</button>`).join('')}</div>
+    </div>
+    <div class="p-5">${({
+      summary: () => `
+        <dl class="grid grid-cols-2 gap-3 text-sm">
+          ${dt('الموكل', `${esc(cl.name)} <span class="text-ink-500 font-normal">(${esc(c.role)})</span>`, 'fa-user-tie', 2)}
+          ${dt('الخصم', esc(c.opponent), 'fa-user-shield')}${dt('محامي الخصم', esc(c.opLawyer || '—'), 'fa-briefcase')}
+          ${dt('نوع الدعوى', esc(c.type), 'fa-tag')}${dt('تاريخ فتح الملف', fmtDate(c.opened), 'fa-regular fa-calendar-plus')}
+          ${dt('هاتف الموكل', `<span dir="ltr">${esc(cl.phone)}</span>`, 'fa-phone')}${dt('الأتعاب المتبقية', due ? `<span class="text-gold-600">${money(due)}</span>` : '<span class="text-emerald-700">مسددة</span>', 'fa-coins')}
+        </dl>
+        <div class="grid grid-cols-2 gap-2 mt-4">
+          <a href="https://wa.me/${COUNTRY_CODE}${esc(cl.phone.replace(/^0/, ''))}?text=${encodeURIComponent(`السلام عليكم ${cl.name}، نذكركم بأن جلسة قضيتكم رقم ${c.number} ${c.next ? 'ستكون ' + rel(c.next.date) + (c.next.time ? ' على الساعة ' + fmtTime(c.next.time) : '') + ' بـ' + c.court : ''}.`)}" target="_blank" rel="noopener" class="py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-center text-xs font-bold"><i class="fa-brands fa-whatsapp ml-1"></i>تذكير الموكل بالجلسة</a>
+          <a href="tel:${esc(cl.phone)}" class="py-2.5 rounded-xl bg-ink-100 hover:bg-ink-200 text-center text-xs font-bold"><i class="fa-solid fa-phone ml-1"></i>اتصال بالموكل</a>
+        </div>`,
+      hearings: () => `
+        <button data-record="${c.id}" class="w-full mb-4 py-3 rounded-xl border-2 border-dashed border-navy-200 hover:border-navy-500 text-navy-700 text-sm font-bold"><i class="fa-solid fa-plus ml-1"></i>تسجيل جلسة جديدة / تأجيل</button>
+        <ol class="relative border-r-2 border-navy-100 pr-5 space-y-5">${[...c.hearings].reverse().map(h => `
+          <li class="relative"><span class="absolute -right-[27px] top-1 w-3.5 h-3.5 rounded-full ring-4 ring-white ${h.result === 'judgment' ? 'bg-emerald-500' : h.result === 'deliberation' ? 'bg-gold-500' : 'bg-navy-500'}"></span>
+            <div class="text-xs text-ink-500 mb-0.5">${fmtDate(h.date)}</div>
+            <div class="font-bold text-sm">${h.result === 'postponed' ? `تأجيل <span class="font-normal text-ink-700">— ${esc(h.reason || '')}</span>` : h.result === 'deliberation' ? 'حجز القضية للمداولة' : h.result === 'judgment' ? '<i class="fa-solid fa-gavel text-emerald-600 ml-1"></i>صدور الحكم' : 'انعقاد الجلسة'}</div>
+            ${h.note ? `<div class="text-sm text-ink-700 bg-ink-50 rounded-xl px-3 py-2 mt-1.5">${esc(h.note)}</div>` : ''}</li>`).join('') || '<li class="text-sm text-ink-500">لا جلسات مسجلة بعد.</li>'}</ol>`,
+      deadlines: () => `
+        <p class="text-xs text-ink-500 mb-3 bg-gold-50 border border-gold-100 rounded-xl p-3"><i class="fa-solid fa-circle-info text-gold-600 ml-1"></i>الآجال الفائتة من أكثر أسباب ضياع الحقوق. يظهر كل أجل في صفحة "اليوم" مع العد التنازلي.</p>
+        <div class="space-y-2 mb-4">${(c.deadlines || []).map(d => `
+          <div class="flex items-center gap-3 p-3 rounded-xl border ${d.done ? 'border-ink-200 opacity-60' : 'border-ink-200'}">
+            <input type="checkbox" data-dldone="${c.id}|${d.id}" ${d.done ? 'checked' : ''} class="w-5 h-5 accent-emerald-600" aria-label="تم">
+            <div class="flex-1 min-w-0"><div class="text-sm font-bold ${d.done ? 'line-through' : ''}">${esc(d.title)}</div><div class="text-[11px] text-ink-500">${fmtDate(d.date)}</div></div>
+            ${d.done ? '<span class="text-[11px] font-bold text-emerald-700"><i class="fa-solid fa-check ml-1"></i>تم</span>' : countdown(d.date)}
+          </div>`).join('') || '<p class="text-sm text-ink-500 mb-2">لا آجال لهذه القضية.</p>'}</div>
+        <form id="dlForm" class="bg-ink-50 rounded-2xl p-3 space-y-2">
+          <div class="text-xs font-bold">إضافة أجل</div>
+          <div class="flex flex-wrap gap-1.5">${['أجل الاستئناف', 'أجل النقض', 'إيداع مذكرة', 'أجل التعرض'].map(x => `<button type="button" data-dlpreset="${x}" class="text-[11px] bg-white border border-ink-200 rounded-lg px-2 py-1">${x}</button>`).join('')}</div>
+          <input id="dlTitle" placeholder="عنوان الأجل" class="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-navy-500">
+          <div class="flex gap-2"><input id="dlDate" type="date" value="${ymd(addDays(new Date(), 30))}" class="flex-1 bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-sm"><button class="px-4 rounded-xl bg-navy-800 text-white text-sm font-bold">إضافة</button></div>
+        </form>`,
+      fees: () => { const pct = fees.agreed ? Math.round(fees.paid / fees.agreed * 100) : 0; return `
+        <div class="grid grid-cols-3 gap-2 text-center mb-4">
+          <div class="bg-ink-50 rounded-xl p-3"><div class="text-[11px] text-ink-500 mb-1">المتفق عليه</div><div class="font-bold">${money(fees.agreed)}</div></div>
+          <div class="bg-emerald-50 rounded-xl p-3"><div class="text-[11px] text-ink-500 mb-1">المدفوع</div><div class="font-bold text-emerald-700">${money(fees.paid)}</div></div>
+          <div class="${due ? 'bg-gold-50' : 'bg-ink-50'} rounded-xl p-3"><div class="text-[11px] text-ink-500 mb-1">الباقي</div><div class="font-bold ${due ? 'text-gold-600' : ''}">${money(due)}</div></div>
+        </div>
+        <div class="flex justify-between text-xs mb-1.5"><span class="text-ink-500">نسبة التحصيل</span><b>${num(pct)}%</b></div>
+        <div class="h-2.5 bg-ink-100 rounded-full overflow-hidden mb-5"><div class="h-full bg-emerald-500 rounded-full" style="width:${pct}%"></div></div>
+        <form id="payForm" class="bg-ink-50 rounded-2xl p-3"><label class="text-xs font-bold block mb-2" for="payAmt">تسجيل دفعة جديدة</label>
+          <div class="flex gap-2"><input id="payAmt" type="number" min="1" inputmode="numeric" placeholder="المبلغ بالدرهم" class="flex-1 bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-navy-500"><button class="px-4 rounded-xl bg-emerald-600 text-white text-sm font-bold">تسجيل</button></div></form>`; },
+      notes: () => `
+        <form id="noteForm" class="mb-4"><textarea id="noteText" rows="3" maxlength="600" placeholder="اكتب ملاحظة عن القضية: طلبات الموكل، نقاط الدفاع، وثائق ناقصة..." class="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-navy-500 resize-none"></textarea>
+          <button class="mt-2 w-full py-2.5 rounded-xl bg-navy-800 text-white text-sm font-bold">حفظ الملاحظة</button></form>
+        <ol class="space-y-3">${[...(c.notes || [])].reverse().map(n => `<li class="bg-gold-50/60 border border-gold-100 rounded-xl p-3"><div class="text-[11px] text-ink-500 mb-1">${new Date(n.at).toLocaleDateString('ar-u-nu-latn', { day:'numeric', month:'long' })}</div><div class="text-sm leading-6 whitespace-pre-line">${esc(n.text)}</div></li>`).join('') || '<li class="text-sm text-ink-500">لا ملاحظات بعد.</li>'}</ol>`,
+    })[caseTab]()}</div>`;
+  $('#drawerFoot').innerHTML = `<div class="flex gap-2">
+    <button data-editcase="${c.id}" class="flex-1 py-3 rounded-xl bg-ink-100 hover:bg-ink-200 text-sm font-bold"><i class="fa-solid fa-pen ml-1.5"></i>تعديل الملف</button>
+    ${c.status !== 'archived' ? `<button data-archive="${c.id}" class="px-4 py-3 rounded-xl bg-ink-100 hover:bg-ink-200 text-sm font-bold"><i class="fa-solid fa-box-archive ml-1.5"></i>أرشفة</button>` : `<button data-unarchive="${c.id}" class="px-4 py-3 rounded-xl bg-ink-100 text-sm font-bold">إعادة فتح</button>`}</div>`;
+
+  // tab forms
+  const f = (id, fn) => { const el = $(id); if (el) el.onsubmit = e => { e.preventDefault(); fn(); }; };
+  f('#dlForm', () => { const t = $('#dlTitle').value.trim(), d = $('#dlDate').value; if (!t || !d) return toast('اكتب عنوان الأجل وتاريخه', 'fa-circle-exclamation', 'text-red-300');
+    c.deadlines = c.deadlines || []; c.deadlines.push({ id: uid('d'), title: t, date: d, done: false }); save(); openCase(id); render(); toast('أُضيف الأجل وسيظهر في صفحة اليوم'); });
+  $$('[data-dlpreset]').forEach(b => b.onclick = () => { $('#dlTitle').value = b.dataset.dlpreset; });
+  f('#payForm', () => { const v = +$('#payAmt').value; if (!(v > 0)) return; c.fees = c.fees || { agreed: 0, paid: 0 }; c.fees.paid += v; save(); openCase(id); render(); toast(`سُجلت دفعة ${money(v)}`); });
+  f('#noteForm', () => { const v = $('#noteText').value.trim(); if (!v) return; c.notes = c.notes || []; c.notes.push({ at: Date.now(), text: v }); save(); openCase(id); toast('حُفظت الملاحظة'); });
+  showDrawer();
+}
+const dt = (k, v, icon, span = 1) => `<div class="bg-ink-50 rounded-xl p-3 ${span === 2 ? 'col-span-2' : ''}"><dt class="text-[11px] text-ink-500 mb-1"><i class="${icon.includes('fa-regular') ? icon : 'fa-solid ' + icon} ml-1 text-[10px]"></i>${k}</dt><dd class="font-semibold">${v}</dd></div>`;
+
+/* Record hearing outcome — recognition over recall */
+function recordHearing(id) {
+  const c = kase(id); let result = 'postponed', reason = '';
+  $('#drawerTitle').textContent = 'تسجيل نتيجة الجلسة'; setBack(() => openCase(id, 'hearings'));
+  const heldDate = c.next && daysTo(c.next.date) <= 0 ? c.next.date : TODAY();
+  const draw = () => {
+    $('#drawerBody').innerHTML = `<form id="hForm" class="p-5 space-y-5 fade-in" novalidate>
+      <div class="bg-navy-50 rounded-xl p-3 text-sm"><span class="font-mono font-bold text-navy-700" dir="ltr">${esc(c.number)}</span> — ${esc(c.title)}</div>
+      <div><label for="hDate" class="block text-sm font-bold mb-1.5">تاريخ الجلسة التي انعقدت</label>
+        <input id="hDate" type="date" value="${heldDate}" class="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-3 text-sm"></div>
+      <div><div class="text-sm font-bold mb-2">ماذا حدث في الجلسة؟</div>
+        <div class="grid grid-cols-3 gap-2">${[['postponed', 'fa-solid fa-forward', 'تأجيل'], ['deliberation', 'fa-solid fa-hourglass-half', 'مداولة'], ['judgment', 'fa-solid fa-gavel', 'حكم']].map(([k, ic, l]) => `
+          <button type="button" data-res="${k}" class="py-3 rounded-xl border-2 text-sm font-bold ${result === k ? 'border-navy-800 bg-navy-50 text-navy-800' : 'border-ink-200'}"><i class="${ic} block mb-1"></i>${l}</button>`).join('')}</div></div>
+      ${result === 'postponed' ? `<div><div class="text-sm font-bold mb-2">سبب التأجيل</div>
+        <div class="flex flex-wrap gap-2">${REASONS.map(r => `<button type="button" data-reason="${r}" class="px-3 py-1.5 rounded-full border text-xs font-semibold ${reason === r ? 'chip-on' : 'border-ink-200 bg-white text-ink-700'}">${r}</button>`).join('')}</div>
+        <p id="reasonErr" class="hidden text-xs text-red-600 mt-1.5"><i class="fa-solid fa-circle-exclamation ml-1"></i>اختر سبب التأجيل</p></div>` : ''}
+      ${result !== 'judgment' ? `<div class="rounded-2xl border border-navy-100 p-4 space-y-3">
+        <div class="text-sm font-bold"><i class="fa-regular fa-calendar text-gold-500 ml-1"></i>${result === 'deliberation' ? 'تاريخ النطق بالحكم' : 'الجلسة القادمة'}</div>
+        <div class="grid grid-cols-2 gap-2"><input id="nDate" type="date" value="${ymd(addDays(new Date(), 14))}" class="bg-ink-50 border border-ink-200 rounded-xl px-3 py-3 text-sm" aria-label="التاريخ">
+          <input id="nTime" type="time" value="${c.next?.time || '09:00'}" class="bg-ink-50 border border-ink-200 rounded-xl px-3 py-3 text-sm" aria-label="الساعة"></div>
+        <div class="flex flex-wrap gap-1.5">${[7, 14, 21, 30].map(d => `<button type="button" data-plus="${d}" class="text-[11px] bg-white border border-ink-200 rounded-lg px-2 py-1">بعد ${num(d)} يوماً</button>`).join('')}</div>
+        ${result === 'postponed' ? `<input id="nPurpose" placeholder="الغرض من الجلسة القادمة (اختياري)" class="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2.5 text-sm">` : ''}
+      </div>` : `<div class="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+        <label class="flex items-center gap-2 text-sm font-bold"><input id="addAppeal" type="checkbox" checked class="w-5 h-5 accent-emerald-600">إضافة أجل الاستئناف تلقائياً</label>
+        <div class="flex items-center gap-2 text-sm"><span>بعد</span><input id="appealDays" type="number" value="30" min="1" class="w-20 bg-white border border-ink-200 rounded-lg px-2 py-1.5 text-center"><span>يوماً من اليوم</span></div>
+        <p class="text-[11px] text-ink-500">عدّل المدة حسب نوع القضية وتاريخ التبليغ.</p></div>`}
+      <div><label for="hNote" class="block text-sm font-bold mb-1.5">${result === 'judgment' ? 'منطوق الحكم' : 'ملاحظة'} <span class="font-normal text-ink-500">(اختياري)</span></label>
+        <textarea id="hNote" rows="3" maxlength="500" class="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2.5 text-sm resize-none" placeholder="${result === 'judgment' ? 'مثال: الحكم لصالح الموكل بأداء مبلغ...' : 'ما دار في الجلسة، طلبات المحكمة...'}"></textarea></div>
+    </form>`;
+    $$('[data-res]').forEach(b => b.onclick = () => { result = b.dataset.res; draw(); });
+    $$('[data-reason]').forEach(b => b.onclick = () => { reason = b.dataset.reason; $$('[data-reason]').forEach(x => x.className = `px-3 py-1.5 rounded-full border text-xs font-semibold ${x.dataset.reason === reason ? 'chip-on' : 'border-ink-200 bg-white text-ink-700'}`); $('#reasonErr').classList.add('hidden'); });
+    $$('[data-plus]').forEach(b => b.onclick = () => { $('#nDate').value = ymd(addDays(parseYmd($('#hDate').value || TODAY()), +b.dataset.plus)); });
+  };
+  draw();
+  $('#drawerFoot').innerHTML = `<button id="saveH" class="w-full py-3.5 rounded-xl bg-navy-800 hover:bg-navy-900 text-white font-bold">حفظ نتيجة الجلسة</button>`;
+  $('#saveH').onclick = () => {
+    if (result === 'postponed' && !reason) { $('#reasonErr').classList.remove('hidden'); return; }
+    const hDate = $('#hDate').value || TODAY(), note = $('#hNote').value.trim();
+    const appealAdded = result === 'judgment' && $('#addAppeal').checked;
+    c.hearings.push({ date: hDate, result, reason: result === 'postponed' ? reason : '', note });
+    if (result === 'judgment') {
+      c.status = 'judged'; c.next = null;
+      if (appealAdded) { c.deadlines = c.deadlines || []; c.deadlines.push({ id: uid('d'), title:'أجل الاستئناف', date: ymd(addDays(new Date(), +$('#appealDays').value || 30)), done: false }); }
+    } else {
+      c.status = result === 'deliberation' ? 'deliberation' : 'active';
+      c.next = { date: $('#nDate').value, time: $('#nTime').value, purpose: result === 'deliberation' ? 'النطق بالحكم' : ($('#nPurpose')?.value.trim() || '') };
+    }
+    save(); render(); caseTab = 'hearings'; openCase(id);
+    toast(result === 'judgment' ? 'سُجل الحكم' + (appealAdded ? ' وأُضيف أجل الاستئناف' : '') : `حُددت الجلسة القادمة: ${rel(c.next.date)}`, result === 'judgment' ? 'fa-gavel' : 'fa-calendar-check');
+  };
+  showDrawer();
+}
+
+/* New / edit case — minimal required fields */
+function caseForm(id) {
+  const c = id ? kase(id) : null;
+  $('#drawerTitle').textContent = id ? 'تعديل ملف القضية' : 'قضية جديدة'; setBack(id ? () => openCase(id) : null);
+  const v = c || { number:'', title:'', type:'مدني', court: db.courts[0], room:'', clientId: db.clients[0].id, role:'مدعي', opponent:'', opLawyer:'', next:null, fees:{ agreed:0, paid:0 } };
+  const inp = (fid, label, val, ph = '', req = false, extra = '') => `<div><label for="${fid}" class="block text-sm font-bold mb-1.5">${label}${req ? '' : ' <span class="font-normal text-ink-500">(اختياري)</span>'}</label>
+    <input id="${fid}" value="${esc(val)}" placeholder="${ph}" ${extra} class="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-navy-500">
+    ${req ? `<p data-err="${fid}" class="hidden text-xs text-red-600 mt-1"><i class="fa-solid fa-circle-exclamation ml-1"></i>هذا الحقل مطلوب</p>` : ''}</div>`;
+  const sel = (fid, label, opts, val) => `<div><label for="${fid}" class="block text-sm font-bold mb-1.5">${label}</label><select id="${fid}" class="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-3 text-sm">${opts.map(o => { const [k, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(k)}" ${k === val ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select></div>`;
+  $('#drawerBody').innerHTML = `<form id="cForm" class="p-5 space-y-4 fade-in" novalidate>
+    <div class="text-xs font-bold text-navy-700 bg-navy-50 rounded-lg px-3 py-2">معلومات أساسية</div>
+    ${inp('fNumber', 'رقم الملف', v.number, 'مثال: 2026/1201/345', true, 'dir="ltr" style="text-align:right"')}
+    ${inp('fTitle', 'موضوع الدعوى', v.title, 'مثال: استخلاص دين', true)}
+    <div class="grid grid-cols-2 gap-3">${sel('fType', 'نوع الدعوى', TYPES, v.type)}${sel('fRole', 'صفة الموكل', ['مدعي', 'مدعى عليه', 'مطالب بالحق المدني', 'متهم'], v.role)}</div>
+    <div>${sel('fClient', 'الموكل', [...db.clients.map(x => [x.id, x.name]), ['__new', '+ موكل جديد']], v.clientId)}
+      <div id="newClient" class="hidden grid grid-cols-2 gap-2 mt-2"><input id="ncName" placeholder="اسم الموكل" class="bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-sm"><input id="ncPhone" type="tel" dir="ltr" placeholder="الهاتف" class="bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-sm text-right"></div></div>
+    ${inp('fOpp', 'الخصم', v.opponent, 'اسم الطرف الآخر', true)}
+    <div>${sel('fCourt', 'المحكمة', [...db.courts.map(x => [x, x]), ...(v.court && !db.courts.includes(v.court) ? [[v.court, v.court]] : []), ['__newcourt', '+ إضافة محكمة جديدة']], v.court)}
+      <input id="ncCourt" placeholder="اسم المحكمة، مثال: محكمة الاستئناف بالقاهرة" class="hidden w-full mt-2 bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-sm"></div>
+    <div class="text-xs font-bold text-navy-700 bg-navy-50 rounded-lg px-3 py-2 mt-2">تفاصيل إضافية</div>
+    <div class="grid grid-cols-2 gap-3">${inp('fRoom', 'القاعة', v.room, 'القاعة 3')}${inp('fOpL', 'محامي الخصم', v.opLawyer, 'ذ. ...')}</div>
+    ${!id ? `<div class="grid grid-cols-2 gap-3"><div><label for="fNext" class="block text-sm font-bold mb-1.5">أول جلسة <span class="font-normal text-ink-500">(اختياري)</span></label><input id="fNext" type="date" class="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-3 text-sm"></div>
+      <div><label for="fTime" class="block text-sm font-bold mb-1.5">الساعة</label><input id="fTime" type="time" value="09:00" class="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-3 text-sm"></div></div>` : ''}
+    ${inp('fFees', 'الأتعاب المتفق عليها (درهم)', v.fees?.agreed || '', '0', false, 'type="number" inputmode="numeric" min="0"')}
+  </form>`;
+  $('#fClient').onchange = e => $('#newClient').classList.toggle('hidden', e.target.value !== '__new');
+  $('#fCourt').onchange = e => { const on = e.target.value === '__newcourt'; $('#ncCourt').classList.toggle('hidden', !on); if (on) $('#ncCourt').focus(); };
+  $('#drawerFoot').innerHTML = `<button id="saveC" class="w-full py-3.5 rounded-xl bg-navy-800 hover:bg-navy-900 text-white font-bold">${id ? 'حفظ التعديلات' : 'فتح ملف القضية'}</button>`;
+  $('#saveC').onclick = () => {
+    let bad = null;
+    ['fNumber', 'fTitle', 'fOpp'].forEach(k => { const ok = $('#' + k).value.trim().length > 0; document.querySelector(`[data-err="${k}"]`).classList.toggle('hidden', ok); if (!ok && !bad) bad = k; });
+    let clientId = $('#fClient').value;
+    if (clientId === '__new') { const n = $('#ncName').value.trim(); if (!n) { $('#ncName').focus(); return toast('اكتب اسم الموكل الجديد', 'fa-circle-exclamation', 'text-red-300'); }
+      clientId = uid('c'); db.clients.push({ id: clientId, name: n, phone: $('#ncPhone').value.trim(), kind: 'فرد' }); }
+    let court = $('#fCourt').value;
+    if (court === '__newcourt') { court = $('#ncCourt').value.trim(); if (!court) { $('#ncCourt').focus(); return toast('اكتب اسم المحكمة الجديدة', 'fa-circle-exclamation', 'text-red-300'); }
+      if (!db.courts.includes(court)) db.courts.push(court); }
+    if (bad) { $('#' + bad).focus(); return; }
+    const data = { number: $('#fNumber').value.trim(), title: $('#fTitle').value.trim(), type: $('#fType').value, role: $('#fRole').value, clientId,
+      opponent: $('#fOpp').value.trim(), court, room: $('#fRoom').value.trim(), opLawyer: $('#fOpL').value.trim() };
+    if (id) { Object.assign(c, data); c.fees = c.fees || { agreed: 0, paid: 0 }; c.fees.agreed = +$('#fFees').value || 0; save(); render(); openCase(id); toast('حُفظت التعديلات'); }
+    else {
+      const nc = Object.assign({ id: uid('k'), status:'active', hearings:[], deadlines:[], notes:[], opened: TODAY(), fees:{ agreed: +$('#fFees').value || 0, paid: 0 },
+        next: $('#fNext').value ? { date: $('#fNext').value, time: $('#fTime').value, purpose:'الجلسة الأولى' } : null }, data);
+      db.cases.push(nc); save(); render(); openCase(nc.id); toast('فُتح ملف القضية بنجاح', 'fa-folder-plus');
+    }
+  };
+  showDrawer(); setTimeout(() => $('#fNumber').focus(), 300);
+}
+
+/* ---------------- GLOBAL SEARCH ---------------- */
+function openSearch() { $('#searchBox').classList.remove('hidden'); $('#gq').value = ''; gSearch(''); setTimeout(() => $('#gq').focus(), 30); }
+function closeSearch() { $('#searchBox').classList.add('hidden'); }
+function gSearch(q) {
+  q = q.trim();
+  const cs = db.cases.filter(c => !q || (c.number + ' ' + c.title + ' ' + client(c.clientId).name + ' ' + c.opponent + ' ' + c.court).includes(q)).slice(0, 8);
+  const cl = q ? db.clients.filter(c => c.name.includes(q) || c.phone.includes(q)).slice(0, 4) : [];
+  $('#gResults').innerHTML = (!q ? '<div class="px-4 pt-3 pb-1 text-[11px] font-bold text-ink-500">أحدث القضايا</div>' : '') +
+    (cs.length ? cs.map(c => `<button data-case="${c.id}" class="w-full text-right flex items-center gap-3 px-4 py-3 hover:bg-navy-50 border-b border-ink-100">
+      <i class="fa-solid fa-folder text-navy-500"></i><span class="flex-1 min-w-0"><span class="block text-sm font-bold truncate">${esc(c.title)}</span><span class="block text-[11px] text-ink-500 truncate"><span dir="ltr">${esc(c.number)}</span> • ${esc(client(c.clientId).name)} ضد ${esc(c.opponent)}</span></span>${statusChip(c.status)}</button>`).join('') : '') +
+    (cl.length ? '<div class="px-4 pt-3 pb-1 text-[11px] font-bold text-ink-500">الموكلون</div>' + cl.map(c => `<button data-clientcases="${c.id}" class="w-full text-right flex items-center gap-3 px-4 py-3 hover:bg-navy-50 border-b border-ink-100"><i class="fa-solid fa-user-tie text-gold-600"></i><span class="text-sm font-bold">${esc(c.name)}</span></button>`).join('') : '') +
+    (!cs.length && !cl.length ? '<div class="text-center py-10 text-sm text-ink-500">لا نتائج</div>' : '');
+}
+
+/* ---------------- PRINT / EXPORT ---------------- */
+function printRoll() {
+  const list = upcoming(7, 0);
+  $('#printArea').innerHTML = `<h2 style="margin:0 0 4px">رول الجلسات — مكتب الأستاذ عمر الإدريسي</h2><div style="margin-bottom:12px;color:#475569">من ${fmtDate(TODAY())} إلى ${fmtDate(ymd(addDays(new Date(), 6)))}</div>
+    <table><thead><tr><th>التاريخ</th><th>الساعة</th><th>المحكمة / القاعة</th><th>رقم الملف</th><th>الموضوع</th><th>الموكل ضد الخصم</th><th>الجلسة السابقة</th><th>الإجراء</th></tr></thead>
+    <tbody>${list.map(c => `<tr><td>${fmtDay(c.next.date)}</td><td>${fmtTime(c.next.time)}</td><td>${esc(c.court)}<br>${esc(c.room || '')}</td><td dir="ltr">${esc(c.number)}</td><td>${esc(c.title)}</td><td>${esc(client(c.clientId).name)} ضد ${esc(c.opponent)}</td><td>${esc(prevText(lastHearing(c)))}</td><td>${esc(c.next.purpose || '')}</td></tr>`).join('') || '<tr><td colspan="8">لا جلسات</td></tr>'}</tbody></table>`;
+  window.print();
+}
+function exportCsv() {
+  const head = ['رقم الملف','الموضوع','النوع','المحكمة','الموكل','الصفة','الخصم','الحالة','الجلسة السابقة','سبب التأجيل','الجلسة القادمة','الساعة','الأتعاب','المدفوع','الباقي'];
+  const rows = db.cases.map(c => [c.number, c.title, c.type, c.court, client(c.clientId).name, c.role, c.opponent, STATUS[c.status].label, lastHearing(c)?.date || '', lastHearing(c)?.reason || '', c.next?.date || '', c.next?.time || '', c.fees?.agreed || 0, c.fees?.paid || 0, Math.max(0, (c.fees?.agreed || 0) - (c.fees?.paid || 0))]);
+  const csv = '﻿' + [head, ...rows].map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' })); a.download = `قضايا-المكتب-${TODAY()}.csv`; a.click();
+  toast('صُدّرت القضايا إلى ملف Excel', 'fa-file-arrow-down');
+}
+
+/* ---------------- EVENTS ---------------- */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-view],[data-case],[data-record],[data-tab],[data-action],[data-fstatus],[data-days],[data-clientcases],[data-editcase],[data-archive],[data-unarchive],[data-jump]');
+  if (!t) return; const d = t.dataset;
+  if (d.view) { state.view = d.view; saveUi(); render(); window.scrollTo(0, 0); }
+  else if (d.case) { closeSearch(); caseTab = 'summary'; openCase(d.case); }
+  else if (d.record) recordHearing(d.record);
+  else if (d.tab) { caseTab = d.tab; openCase(d.id); }
+  else if (d.fstatus) { state.fStatus = d.fstatus; renderCases(); }
+  else if (d.days) { state.agendaDays = +d.days; renderAgenda(); }
+  else if (d.clientcases) { closeSearch(); hideDrawer(); Object.assign(state, { view:'cases', fClient: d.clientcases, fStatus:'all', fType:'all', q:'' }); render(); window.scrollTo(0, 0); }
+  else if (d.editcase) caseForm(d.editcase);
+  else if (d.archive) { kase(d.archive).status = 'archived'; save(); render(); openCase(d.archive); toast('أُرشف الملف', 'fa-box-archive'); }
+  else if (d.unarchive) { kase(d.unarchive).status = 'active'; save(); render(); openCase(d.unarchive); toast('أُعيد فتح الملف'); }
+  else if (d.jump === 'deadlines') { const el = $('#deadlines'); if (el) el.scrollIntoView({ behavior:'smooth', block:'start' }); }
+  else if (d.action === 'new-case') caseForm();
+  else if (d.action === 'close') hideDrawer();
+  else if (d.action === 'search') openSearch();
+  else if (d.action === 'close-search') closeSearch();
+  else if (d.action === 'print') printRoll();
+  else if (d.action === 'export') exportCsv();
+  else if (d.action === 'reset') { db = seed(); save(); hideDrawer(); render(); toast('أُعيدت البيانات التجريبية', 'fa-rotate'); }
+});
+document.addEventListener('change', e => {
+  const el = e.target; if (!el.dataset.dldone) return;
+  const [cid, did] = el.dataset.dldone.split('|'), dl = kase(cid).deadlines.find(x => x.id === did);
+  dl.done = el.checked; save(); render(); if (drawerOpen()) openCase(cid);
+  toast(el.checked ? 'تم إنجاز الأجل' : 'أُعيد فتح الأجل');
+});
+$('#gq').addEventListener('input', e => gSearch(e.target.value));
+$('#overlay').onclick = hideDrawer;
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (!$('#searchBox').classList.contains('hidden')) closeSearch(); else hideDrawer(); }
+  if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); }
+});
+
+/* ---------------- INIT ---------------- */
+render();
+</script>
+</body>
+</html>
